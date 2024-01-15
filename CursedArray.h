@@ -8,10 +8,9 @@
 #define CURSED_ARRAY_H
 
 #include <string>
+#include "RedBlack_Tree.h"
 
 // TODO: iterators to find saved keys/values
-
-const int INIT_CAPACITY = 1;
 
 template<typename T>
 class CursedArray {
@@ -19,13 +18,11 @@ class CursedArray {
 private:
 
     struct Item {
-        float key;
+        float index;
         T value;
     };
 
-    Item *_array;
-    int _nextIndex;
-    int _capacity;
+    RedBlackTree<T> _tree;
     T setValue;
 
 public:
@@ -36,10 +33,10 @@ public:
     const T & operator [](float key) const;
     T & operator [](double key);
     T & operator [](float key);
-    T & operator [](int key);    // No int indexes, overloaded to cause an error
+    void operator [](int key);    // No int indexes, overloaded to cause an error
     T & operator [](std::string);
 
-    // TODO: addition (++ += +) changes indexKey (RHL = -value to decrease key)
+    // TODO: addition (++ += +) changes indexKey (RHL = -value to decrease index)
     T & operator ++();
     T & operator +=(float value);
     T & operator +(float value);
@@ -57,7 +54,7 @@ public:
     int length();
 
     // debugging, will be removed
-    int capacity();
+    int size();
 
 private:
     bool _findKey(float key, int leftLimit, int rightLimit);
