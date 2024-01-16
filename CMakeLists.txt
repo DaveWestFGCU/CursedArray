@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(CursedArray testbed_main.cpp
         CursedArray.cpp
-        CursedArray.h
         List.h
         Queue.h
-        RedBlack_Tree.h
+        RedBlack_Tree.cpp
         )

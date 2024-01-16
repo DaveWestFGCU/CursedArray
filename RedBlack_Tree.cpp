@@ -7,28 +7,36 @@
 #ifndef REDBLACKTREE_H
 #define REDBLACKTREE_H
 
-#include "Queue.h" // Used in breadth-first search
+#include "Queue.h" // Used in breadth-first findValue
 
 #include <iostream>
 using std::cout;
 
-template<typename T>
+template <typename K, typename V>
 class RedBlackTree {
 public:
     enum { BLACK, RED };
 private:
     struct RedBlackNode {
-        T value;
+        K key;
+        V value;
         bool color;
         RedBlackNode* parent;
         RedBlackNode* leftChild;
         RedBlackNode* rightChild;
 
-        // Constructors
-        explicit RedBlackNode(const T & val, RedBlackNode* p = nullptr, RedBlackNode* l = nullptr, RedBlackNode* r = nullptr, bool c = RED)
-                : value{val}, parent{p}, leftChild{l}, rightChild{r}, color{c} {}
-        explicit RedBlackNode(T && val, RedBlackNode* p = nullptr, RedBlackNode* l = nullptr, RedBlackNode* r = nullptr, bool c = RED)
-                : value{std::move(val)}, parent{p},leftChild{l}, rightChild{r}, color{c} {}
+    // Constructors
+        // Key and value are both known on construction
+        RedBlackNode(const K & key, const V & val, bool c = RED,
+                              RedBlackNode* p = nullptr, RedBlackNode* l = nullptr, RedBlackNode* r = nullptr)
+                : key{key}, value{val}, parent{p}, leftChild{l}, rightChild{r}, color{c} {}
+        RedBlackNode(const K & key, V && val, bool c = RED,
+                              RedBlackNode* p = nullptr, RedBlackNode* l = nullptr, RedBlackNode* r = nullptr)
+                : key{key}, value{std::move(val)}, parent{p},leftChild{l}, rightChild{r}, color{c} {}
+        // Value is to be assigned after construction
+        explicit RedBlackNode(const K & key, bool c = RED,
+                              RedBlackNode* p = nullptr, RedBlackNode* l = nullptr, RedBlackNode* r = nullptr)
+                : key{key}, parent{p}, leftChild{l}, rightChild{r}, color{c} {}
 
     };  // End RedBlackNode
 
@@ -41,10 +49,12 @@ public:
     ~RedBlackTree();
 
     // Tree Management Methods
-    void insert(const T & value);
-    bool remove(const T & value);
-    T search(const T & value);
-    bool exists(const T & value);
+    void insert(const K & key, const V & value);
+    V& cursedInsert(const K & key); // Used in [] operator overloading
+    bool remove(const K & key);
+    V* findValue(const K & key);
+    K findKey(const V & value);
+    int size();
 
     // Traversal Methods
     void preOrderTraverse();
@@ -54,11 +64,9 @@ public:
 
 private:
     // Tree Management Methods
-    void _insert(RedBlackNode* & parent, RedBlackNode* & newNode);
-    bool _remove(const T & value, RedBlackNode* node);
-
-    int _findMinValue(RedBlackNode* root);
-    int _height(RedBlackNode* node);
+    V* _insert(RedBlackNode* & parent, RedBlackNode* & newNode);
+    bool _remove(const K & key, RedBlackNode* node);
+    K _findMinValue(RedBlackNode* root);
 
     // Traversal Methods
     void _preOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*));
@@ -71,7 +79,7 @@ private:
     static void _printValue(RedBlackNode* node);
     static void _calcHeight(RedBlackNode* node);
 
-    // AVL Re-balancing
+    // Re-balancing
     void _leftRotate(RedBlackNode* node);
     void _rightRotate(RedBlackNode* node);
     void _leftRightRotate(RedBlackNode* node);
@@ -89,8 +97,8 @@ private:
 /**
  * Default constructor
  */
-template<typename T>
-RedBlackTree<T>::RedBlackTree() {
+template <typename K, typename V>
+RedBlackTree<K,V>::RedBlackTree() {
     treeRoot = nullptr;
     _size = 0;
 }
@@ -99,8 +107,8 @@ RedBlackTree<T>::RedBlackTree() {
 /**
  * Destructor
  */
-template<typename T>
-RedBlackTree<T>::~RedBlackTree() {
+template <typename K, typename V>
+RedBlackTree<K,V>::~RedBlackTree() {
     _postOrderTraverse(treeRoot, & RedBlackTree::_deleteNode);
 }
 
@@ -109,13 +117,12 @@ RedBlackTree<T>::~RedBlackTree() {
 //                  Public Tree Management Methods
 
 /**
- * Adds a value to the tree.
+ * Adds a (key, value) pair to the tree.
  * @param data (int) - Value to be added.
  */
-template<typename T>
-void RedBlackTree<T>::insert(const T & value) {
-    auto* newNode = new RedBlackNode(value);
-
+template <typename K, typename V>
+void RedBlackTree<K,V>::insert(const K & key, const V & value) {
+    auto* newNode = new RedBlackNode(key, value);
     if (!treeRoot) {
         // First node to be inserted into the tree
         treeRoot = newNode;
@@ -124,56 +131,87 @@ void RedBlackTree<T>::insert(const T & value) {
         return;
     }
 
-        // A tree root exists
+    // A tree root exists
     _insert(treeRoot, newNode);
 
 } // End insert()
 
 
 /**
- * Finds whether a value exists in the tree.
- * @param value (T) - Value to search for.
- * @return - Returns true if value exists in the tree, false if not in the tree.
+ * Insertion for CursedArray [] operation overloading.
+ * Checks if a node exists for reassignment, and if not inserts a node without a value for later assignment.
+ * Using this function for insertion prevents having to traverse twice for insertions
+ * (once to determine if the value already exists and again to insert a new value).
+ * @param key Key/Index to determine placement in tree. Must be comparable.
+ * @return Returns a reference to the node's value for either the node with either the matched key or a new key.
  */
-template<typename T>
-T RedBlackTree<T>::search(const T & value) {
+template <typename K, typename V>
+V& RedBlackTree<K,V>::cursedInsert(const K & key) {
+
+    if (!treeRoot) {
+        auto* newNode = new RedBlackNode(key);
+        // First node to be inserted into the tree
+        treeRoot = newNode;
+        treeRoot->color = BLACK;
+        ++_size;
+        return treeRoot->value;
+    }
+
+    // Tree root exists, traverse to the appropriate node or leaf
     RedBlackNode* currentNode = treeRoot;
+    RedBlackNode* parentNode;
     bool nodeExists = false;
 
     while (currentNode and !nodeExists) {
-
-        if (currentNode->value == value) {
+        if (currentNode->key == key) {
             nodeExists = true;
+            parentNode = currentNode->parent;
 
-        } else if (currentNode->value < value) {
+        } else if (currentNode->key > key) {
+            parentNode = currentNode;
             currentNode = currentNode->leftChild;
 
         } else {
+            parentNode = currentNode;
             currentNode = currentNode->rightChild;
         }
     }
 
-    return currentNode->value;
+    // Key is in the tree, overwrite its value
+    if (currentNode and currentNode->key == key) {
+        return currentNode->value;
+    }
 
-} // End search()
+    // Key is not in the tree, add as a leaf
+    auto* newNode = new RedBlackNode(key);
+    newNode->parent = parentNode;
+
+    if (key < parentNode->key) {
+        parentNode->leftChild = newNode;
+    } else {
+        parentNode->rightChild = newNode;
+    }
+    ++_size;
+    cout << _size;
+    return newNode->value;
+}
 
 
 /**
- * Finds whether a value exists in the tree.
- * @param value (T) - Value to search for.
- * @return - Returns true if value exists in the tree, false if not in the tree.
+ * Finds the value stored at a key is in the tree.
+ * @param key (K) - Key to find.
+ * @return - Returns a pointer to the value stored at a key.
  */
-template<typename T>
-bool RedBlackTree<T>::exists(const T & value) {
+template <typename K, typename V>
+V* RedBlackTree<K,V>::findValue(const K & key) {
     RedBlackNode* currentNode = treeRoot;
     bool nodeExists = false;
 
     while (currentNode and !nodeExists) {
-
-        if (currentNode->value == value) {
+        if (currentNode->key == key) {
             nodeExists = true;
 
-        } else if (currentNode->value < value) {
+        } else if (currentNode->key > key) {
             currentNode = currentNode->leftChild;
 
         } else {
@@ -181,9 +219,23 @@ bool RedBlackTree<T>::exists(const T & value) {
         }
     }
 
-    return nodeExists;
+    if (!currentNode)   // Reached the end of a branch and currentNode is a nullptr
+        return nullptr;
 
-} // End search()
+    return &currentNode->value;
+
+} // End findValue()
+
+
+/**
+ * Finds whether a value is in the tree.
+ * @param value (V) - Value to search for
+ * @return - Returns the key for the value.
+ */
+template <typename K, typename V>
+K RedBlackTree<K,V>::findKey(const V & value) {
+
+} // End findValue()
 
 
 /**
@@ -191,9 +243,9 @@ bool RedBlackTree<T>::exists(const T & value) {
  * @param value - Value to be found and removed.
  * @return - True if value existed within the tree, false if the value did not exist.
  */
-template<typename T>
-bool RedBlackTree<T>::remove(const T & value) {
-    return _remove(value, treeRoot);
+template <typename K, typename V>
+bool RedBlackTree<K,V>::remove(const K & key) {
+    return _remove(key, treeRoot);
 }
 
 
@@ -204,63 +256,71 @@ bool RedBlackTree<T>::remove(const T & value) {
  * Private function to add a new node with a given value to the tree.
  * Called by the public insert function.
  * Duplicates are added in the left child.
- * @param value <T> - Value of the node to add.
+ * @param value <V> - Value of the node to add.
  * @param root - Value of the current traversal node.
  * @return Returns a pointer to the current node.
  */
-template<typename T>
-void RedBlackTree<T>::_insert(RedBlackNode* & parent, RedBlackNode* & newNode) {
-        // Value > parent value, go right
-    if (newNode->value > parent->value) {
+template <typename K, typename V>
+V* RedBlackTree<K,V>::_insert(RedBlackNode* & parent, RedBlackNode* & newNode) {
+    V* valuePtr;
+        // Key > parent key, go right
+    if (newNode->key > parent->key) {
 
         if (!parent->rightChild) {      // Parent does not have a right child
             parent->rightChild = newNode;
+            valuePtr = &newNode->value;
             newNode->parent = parent;
             ++_size;
         }
         else {      // Parent has a right child, go to it
-            _insert(parent->rightChild, newNode);
+
+            valuePtr = _insert(parent->rightChild, newNode);
         }
 
-    } // end new value > parent value
+    } // end new key > parent key
 
-        // Value <= parent value, go left
-    else {
+        // key <= parent key, go left
+    else if (newNode->key < parent->key){
         if (!parent->leftChild) {   // Parent does not have a left child
             parent->leftChild = newNode;
+            valuePtr = &newNode->value;
             newNode->parent = parent;
             ++_size;
         }
         else {      // Parent has a left child, go to it
-            _insert(parent->leftChild, newNode);
+            valuePtr = _insert(parent->leftChild, newNode);
         }
-    }   // end new value <= parent Value
+    }   // end new key <= parent key
 
     _checkColor(newNode);
 
+    return valuePtr;
 }   // end _insert()
 
 
 /**
- * Recursive function to find and delete a value from the tree.
- * @param value - Value to be found and removed.
+ * Recursive function to find and delete a key from the tree.
+ * @param key - Value to be found and removed.
  * @param node - RedBlackNode* to the root of a tree or subtree.
- * @param isFound - Bool to be returned by calling function for whether value was found within the tree.
- * @return Returns true if the value to remove was found.
+ * @param isFound - Bool to be returned by calling function for whether key was found within the tree.
+ * @return Returns true if the key to remove was found.
  */
-template<typename T>
-bool RedBlackTree<T>::_remove(const T & value, RedBlackNode* node) {
-    // Base case 1: End of search, value not in tree
+template <typename K, typename V>
+bool RedBlackTree<K,V>::_remove(const K & key, RedBlackNode* node) {
+    // Base case 1: End of findValue, key not in tree
     if (!node)
         return false;
 
     // Base case 2: Value found at this node.
-    if (node->value == value) {
-        if (node->leftChild and node->rightChild) {      // Value was found in a parent of two children
-            node->value = _findMinValue(node->rightChild);
-            _remove(node->value, node->rightChild);
+    // 3 Sub-cases: 1) Value found in a parent of 2 children
+    //              2) Value found in a parent of 1 child
+    //              3) Value found in a leaf
+    if (node->key == key) {
+        if (node->leftChild and node->rightChild) {      // Parent of 2 children
+            node->key = _findMinValue(node->rightChild);
+            _remove(node->key, node->rightChild);
 
-        } else if (node->leftChild or node->rightChild) {        // Value was found in a parent of one child
+        } else if (node->leftChild or node->rightChild) {        // Parent of 1 child
             RedBlackNode* tempNode = node;
             node = (node->leftChild) ? node->leftChild : node->rightChild;
 
@@ -273,7 +333,8 @@ bool RedBlackTree<T>::_remove(const T & value, RedBlackNode* node) {
 
             delete tempNode;
             --_size;
-        } else {    // Value was found in a terminal node
+
+        } else {    // Leaf
             RedBlackNode* parent = node->parent;
 
             if (parent->leftChild == node)
@@ -291,11 +352,11 @@ bool RedBlackTree<T>::_remove(const T & value, RedBlackNode* node) {
         return true;
     }
 
-    // Recursive case: Value higher or lower than current node's value
-    if (value < node->value) {
-        return _remove(value, node->leftChild);
+    // Recursive case: Value higher or lower than current node's key
+    if (key < node->key) {
+        return _remove(key, node->leftChild);
     } else {
-        return _remove(value, node->rightChild);
+        return _remove(key, node->rightChild);
     }
 
 } // End _remove()
@@ -306,32 +367,33 @@ bool RedBlackTree<T>::_remove(const T & value, RedBlackNode* node) {
  * @param root - Root of the tree or subtree to be searched.
  * @return Returns the minimum value.
  */
-template<typename T>
-int RedBlackTree<T>::_findMinValue(RedBlackNode* root ) {
+template <typename K, typename V>
+K RedBlackTree<K,V>::_findMinValue(RedBlackNode* root ) {
     // Base case 1: Tree does not exist
-    if ( !root )
+    if (!root)
         return -1;
 
     // Base case 2: RedBlackNode has no left child, found min node
-    if ( !(root -> leftChild ) ) {
-        return root -> value;
+    if (!root->leftChild) {
+        return root->key;
     }
 
     // Recursive case: RedBlackNode has a left child
-    return _findMinValue( root -> leftChild );
+    return _findMinValue(root->leftChild);
 
 } // End _findMinValue
 
 
 /**
- * Returns the height of a node. Used in AVL balancing.
- * @param node - RedBlackNode whose height we're interested in.
- * @return (int) - Height of the node, -1 if the node doesn't exist.
+ *
+ * @tparam K Key for tree positioning/balancing.
+ * @tparam V Value stored at given key.
+ * @return Returns the number of elements in the array.
  */
-template<typename T>
-inline int RedBlackTree<T>::_height(RedBlackNode* node) {
-    return (node) ? node->height : -1;
-} // End _height()
+template <typename K, typename V>
+inline int RedBlackTree<K,V>::size() {
+    return _size;
+}
 
 
 // ---------------------------------------------------------------------
@@ -343,8 +405,8 @@ inline int RedBlackTree<T>::_height(RedBlackNode* node) {
  * 2. Visit left subtree
  * 3. Visit right subtree
  **/
-template<typename T>
-void RedBlackTree<T>::preOrderTraverse() {
+template <typename K, typename V>
+void RedBlackTree<K,V>::preOrderTraverse() {
     _preOrderTraverse(treeRoot, &_printValue);
 }
 
@@ -355,8 +417,8 @@ void RedBlackTree<T>::preOrderTraverse() {
  * 2. Visit root node
  * 3. Visit right subtree
  */
-template<typename T>
-void RedBlackTree<T>::inOrderTraverse() {
+template <typename K, typename V>
+void RedBlackTree<K,V>::inOrderTraverse() {
     _inOrderTraverse(treeRoot, &_printValue);
 }
 
@@ -367,8 +429,8 @@ void RedBlackTree<T>::inOrderTraverse() {
  * 2. Visit right subtree
  * 3. Visit root node
  */
-template<typename T>
-void RedBlackTree<T>::postOrderTraverse() {
+template <typename K, typename V>
+void RedBlackTree<K,V>::postOrderTraverse() {
     _postOrderTraverse(treeRoot, &_printValue);
 }
 
@@ -376,8 +438,8 @@ void RedBlackTree<T>::postOrderTraverse() {
 /**
  * Traverses the tree or subtree from in order of depth, from left to right.
  */
-template<typename T>
-void RedBlackTree<T>::breadthFirstTraverse() {
+template <typename K, typename V>
+void RedBlackTree<K,V>::breadthFirstTraverse() {
     _breadthFirstTraverse(treeRoot, &_printValue);
 
 } // End breadthFirstTraverse()
@@ -392,8 +454,8 @@ void RedBlackTree<T>::breadthFirstTraverse() {
  * @param root - The root of the tree or subtree to be traversed.
  * @param operation - Function to execute on each node.
  */
-template<typename T>
-void RedBlackTree<T>::_preOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_preOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
     // Do something
     operation(root);
 
@@ -413,8 +475,8 @@ void RedBlackTree<T>::_preOrderTraverse(RedBlackNode* & root, void(*operation)(R
  * @param root - The root of the tree or subtree to be traversed.
  * @param operation - Function to execute on each node.
  */
-template<typename T>
-void RedBlackTree<T>::_inOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_inOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
     // Visit left child
     if (root->leftChild)
         _inOrderTraverse(root->leftChild, &_printValue);
@@ -434,8 +496,8 @@ void RedBlackTree<T>::_inOrderTraverse(RedBlackNode* & root, void(*operation)(Re
  * @param root - The root of the tree or subtree to be traversed.
  * @param operation - Function to execute on each node.
  */
-template<typename T>
-void RedBlackTree<T>::_postOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_postOrderTraverse(RedBlackNode* & root, void(*operation)(RedBlackNode*)) {
     // Visit left child
     if (root->leftChild)
         _postOrderTraverse(root->leftChild, operation);
@@ -455,8 +517,8 @@ void RedBlackTree<T>::_postOrderTraverse(RedBlackNode* & root, void(*operation)(
  * @param root - Root of tree or subtree to evaluate.
  * @param operation - Pointer to a function to perform at each node.
  */
-template <typename T>
-void RedBlackTree<T>::_breadthFirstTraverse(RedBlackNode* root, void(*operation)(RedBlackNode*)) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_breadthFirstTraverse(RedBlackNode* root, void(*operation)(RedBlackNode*)) {
     Queue<RedBlackNode*> unvisitedNodes;
     unvisitedNodes.enqueue(root);
 
@@ -479,8 +541,8 @@ void RedBlackTree<T>::_breadthFirstTraverse(RedBlackNode* root, void(*operation)
  * Deletes a node.
  * @param node - The node to delete.
  */
-template<typename T>
-void RedBlackTree<T>::_deleteNode(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_deleteNode(RedBlackNode* node) {
     delete node;
 }
 
@@ -489,18 +551,18 @@ void RedBlackTree<T>::_deleteNode(RedBlackNode* node) {
  * Prints the value of node to console.
  * @param node - The node whose value will be printed to console.
  */
-template<typename T>
-void RedBlackTree<T>::_printValue(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_printValue(RedBlackNode* node) {
     cout << "( " << node->value << " | " << (node->color ? "R" : "B") << " ) ";
 }
 
 
 /**
- * Finds and sets the height of a node. Used in a breadth first search for AVL re-balancing.
+ * Finds and sets the height of a node. Used in a breadth first findValue for AVL re-balancing.
  * @param node - RedBlackNode whose height needs to be evaluated.
  */
-template<typename T>
-void RedBlackTree<T>::_calcHeight(RedBlackNode* node) {
+template <typename K, typename T>
+void RedBlackTree<K,T>::_calcHeight(RedBlackNode* node) {
 
     if (node->leftChild && node->rightChild)
         node->height = std::max(node->leftChild->height, node->rightChild->height) + 1;
@@ -518,7 +580,7 @@ void RedBlackTree<T>::_calcHeight(RedBlackNode* node) {
 
 
 // ---------------------------------------------------------------------
-//                       AVL Re-balancing
+//                        Red-Black Re-balancing
 
 
 /**
@@ -526,8 +588,8 @@ void RedBlackTree<T>::_calcHeight(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_leftRotate(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_leftRotate(RedBlackNode* node) {
     RedBlackNode* temp = node->rightChild;
     node->rightChild = temp->leftChild;
 
@@ -563,8 +625,8 @@ void RedBlackTree<T>::_leftRotate(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_rightRotate(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_rightRotate(RedBlackNode* node) {
     RedBlackNode* temp = node->leftChild;
     node->leftChild = temp->rightChild;
 
@@ -598,8 +660,8 @@ void RedBlackTree<T>::_rightRotate(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_leftRightRotate(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_leftRightRotate(RedBlackNode* node) {
     _leftRotate(node->leftChild);
     _rightRotate(node);
 }
@@ -610,8 +672,8 @@ void RedBlackTree<T>::_leftRightRotate(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_rightLeftRotate(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_rightLeftRotate(RedBlackNode* node) {
     _rightRotate(node->rightChild);
     _leftRotate(node);
 }
@@ -622,8 +684,8 @@ void RedBlackTree<T>::_rightLeftRotate(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_rotate(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_rotate(RedBlackNode* node) {
     RedBlackNode* parentNode = node->parent;
     RedBlackNode* grandparent = parentNode->parent;
 
@@ -670,8 +732,8 @@ void RedBlackTree<T>::_rotate(RedBlackNode* node) {
  * @tparam T
  * @param node
  */
-template <typename T>
-void RedBlackTree<T>::_correctTree(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_correctTree(RedBlackNode* node) {
     RedBlackNode* parentNode = node->parent;
     RedBlackNode* grandparent = (parentNode->parent) ? grandparent = parentNode->parent : nullptr;
 
@@ -688,7 +750,7 @@ void RedBlackTree<T>::_correctTree(RedBlackNode* node) {
         return;
     }
 
-        // Aunt exists (not always true, can be nullptr) and is red
+        // Aunt findKey (not always true, can be nullptr) and is red
     if (aunt) {
         aunt->color = BLACK;
     }
@@ -703,8 +765,8 @@ void RedBlackTree<T>::_correctTree(RedBlackNode* node) {
  * @tparam T
  * @param colorCheck
  */
-template <typename T>
-void RedBlackTree<T>::_checkColor(RedBlackNode* node) {
+template <typename K, typename V>
+void RedBlackTree<K,V>::_checkColor(RedBlackNode* node) {
     if (node == treeRoot)   // Tree root has no parents and thus no conflicts.
         return;
 

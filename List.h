@@ -225,7 +225,7 @@ T List<T>::remove( int index ) {
 
 /**
  * Searches the list for a node with the given value.
- * @param data (int) The value to search the list for.
+ * @param data (int) The value to findValue the list for.
  * @return (int) The index of the first node with the given value or -1 if the
  * value was not found within the list.
  */

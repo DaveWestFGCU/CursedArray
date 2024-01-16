@@ -4,69 +4,86 @@
 //
 // ----------------------------------------------------------------------------
 
-#include "CursedArray.h"
+#ifndef CURSED_ARRAY
+#define CURSED_ARRAY
+
+#include "RedBlack_Tree.cpp"
+
+
+template <typename T>
+class CursedArray {
+
+private:
+    static RedBlackTree<float, T>* _tree;
+
+public:
+    CursedArray();
+    ~CursedArray();
+
+    const T & operator [](float index) const;
+    void operator =(T value);
+    CursedArray<T> & operator [](float index);
+    T & operator [](double index);
+    void operator [](int index);
+
+
+    bool remove(float index);
+    int size();
+    int _index;
+};
 
 
 /**
  * Default constructor
  */
-template<typename T>
+template <typename T>
 CursedArray<T>::CursedArray() {
-    _tree = new RedBlackTree<T>;
-}
-
-
-/**
- * Copy constructor
- */
-template<typename T>
-CursedArray<T>::CursedArray(CursedArray& arr) {
-    _tree = arr._tree;
+    _tree = new RedBlackTree<float, T>;
 }
 
 
 /**
  * Destructor
  */
-template<typename T>
+template <typename T>
 CursedArray<T>::~CursedArray() {
     delete _tree;
 }
 
 
 /**
- * [] operator for getting a value for a given float index.
+ * [] operator for accessing a value for a given float index.
  */
-template<typename T>
-const T& CursedArray<T>::operator [](float index) const {
-    Item foundItem = _tree.search(index);
-    return foundItem->value;
+template <typename T>
+const T & CursedArray<T>::operator [](float index) const {
+    return _tree->findValue(index);
 }
 
 
-/*
- * [] operator for setting a value at a given float index.
+/**
+ *
+ * @param value
  */
-template<typename T>
-T& CursedArray<T>::operator [](float index) {
-    // Key in _tree, overwrite value
-    if (_tree.exists(index)) {
-        Item foundItem = _tree.search(index);
+template <typename T>
+void CursedArray<T>::operator=(T value) {
+    _tree->insert(_index, value);
+}
 
-        return foundItem->value;
-    }
-
-    // Index not in _tree
-    Item newItem = (index);
-    _tree.insert(newItem);
-
-    return _tree[index];
-
+/**
+ * [] operator for assigning a value at a given float index.
+ * @tparam T Template datatype for the value to store.
+ * @param index Index at which to store the value.
+ * @return Returns a reference to the index's value.
+ */
+template <typename T>
+CursedArray<T> & CursedArray<T>::operator [](float index) {
+    this->_index = index;
+    return *this;
 }
 
 
-/*
- * [] operator for setting a value at a given float index.
+/**
+ * [] operator overloading to convert a double index to a float index.
  */
 template<typename T>
 T& CursedArray<T>::operator [](double index) {
@@ -74,31 +91,12 @@ T& CursedArray<T>::operator [](double index) {
 }
 
 
-/*
+/**
  * [] Operator overloaded to error if index is an int or int literal.
  */
 template<typename T>
-void CursedArray<T>::operator [](int index) {
+void CursedArray<T>::operator [](int) {
     static_assert(false, "CursedArray index cannot be an integer.");
-}
-
-
-/*
- * Operator overload for assignment (=).
- */
-template<typename T>
-T & CursedArray<T>::operator =(CursedArray const & arr){
-    //TODO: Assignment operator
-}
-
-
-/*
- * For Debugging
- * Returns the number of elements
- */
-template<typename T>
-int CursedArray<T>::size() {
-    return _tree.size();
 }
 
 
@@ -106,87 +104,18 @@ int CursedArray<T>::size() {
  *
  * @tparam T
  * @param index
- * @return
+ * @return Returns true if the index was found and removed.
  */
-template<typename T>
-bool CursedArray<T>::exists(float index) {
-    return _tree.exists(index);
+template <typename T>
+bool CursedArray<T>::remove(float index) {
+    return _tree->remove(index);
 }
 
 
-/*
- * Returns a pointer to an array of false allIndexes.
- */
-template<typename T>
-float* CursedArray<T>::allIndexes() {
-    float *indexArray = new float[_tree.size()];
-
-    for (int i = 0; i < _tree.size(); ++i)
-        indexArray[i] = _tree[i].index;
-
-    return indexArray;
+template <typename T>
+inline int CursedArray<T>::size() {
+    return _tree->size();
 }
 
 
-/*
- * Removes an element from the array.
- */
-template<typename T>
-void CursedArray<T>::remove(float key) {
-
-}
-
-
-// ----------------------------- PRIVATE FUNCTIONS -----------------------------
-/*
- * Recursive function for a binary search for a given index.
- * Returns true if index exists in array.
- */
-template<typename T>
-bool CursedArray<T>::_findKey(float key, int leftLimit, int rightLimit) {
-    if (leftLimit <= rightLimit) {
-        int midpoint = leftLimit + ((rightLimit - leftLimit) / 2);
-
-        if (_tree[midpoint].index == key)    // Key found
-            return true;
-
-        if (_tree[midpoint].index > key)
-            return _findKey(key, leftLimit, midpoint - 1);
-
-        // Remaining condition: _tree[midpoint] < index
-        return _findKey(key, midpoint + 1, rightLimit);
-    }
-
-    return false;
-}
-
-
-/*
- * Returns true index of a given index.
- */
-template<typename T>
-int CursedArray<T>::_findIndex(float key) {
-    return _findIndex_(key, 0, _tree.size() - 1);
-}
-
-
-/*
- *
- */
-template<typename T>
-int CursedArray<T>::_findIndex_(float key, int leftLimit, int rightLimit) {
-    if (leftLimit <= rightLimit) {
-        int midpoint = leftLimit + ((rightLimit - leftLimit) / 2);
-
-        if (_tree[midpoint].index == key)    // Key found
-            return midpoint;
-
-        if (_tree[midpoint].index > key)
-            return _findIndex_(key, leftLimit, midpoint - 1);
-
-        // Remaining condition: _tree[midpoint].index < index
-        return _findIndex_(key, midpoint + 1, rightLimit);
-    }
-
-    return -1;
-}
+#endif //CURSED_ARRAY
