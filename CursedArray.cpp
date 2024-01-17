@@ -7,114 +7,58 @@
 #ifndef CURSED_ARRAY
 #define CURSED_ARRAY
 
-#include "RedBlack_Tree.cpp"
+#include "RedBlack_Tree.h"
 
 
 template <typename T>
 class CursedArray {
 
 private:
-    static RedBlackTree<float, T>* _tree;
+
+    struct Proxy {   // https://stackoverflow.com/questions/18670530/properly-overloading-bracket-operator-for-hashtable-get-and-set
+        CursedArray<T> * _ca;
+        float _key;
+    public:
+        Proxy( CursedArray<T> * ca, float key) : _ca(ca), _key(key) {}
+        Proxy( CursedArray<T> const * ca, const float & key) : _ca(ca), _key(key) {}
+
+        operator T() const {
+            T* value = _ca->_get(_key);
+            if (value)
+                return *value;
+            else
+                
+        }
+
+        void operator=(T value) {
+            _ca->_set(_key, value);
+        }
+    };
+
+
+    RedBlackTree<float, T> _tree;
 
 public:
-    CursedArray();
-    ~CursedArray();
-
-    const T & operator [](float index) const;
-    void operator =(T value);
-    CursedArray<T> & operator [](float index);
-    T & operator [](double index);
-    void operator [](int index);
+    Proxy operator [](float index) {
+        return Proxy(this, index);
+    }
 
 
-    bool remove(float index);
-    int size();
-    int _index;
+private:
+    T* _get(float index);
+    void _set(float index, T value);
 };
 
 
-/**
- * Default constructor
- */
 template <typename T>
-CursedArray<T>::CursedArray() {
-    _tree = new RedBlackTree<float, T>;
-}
-
-
-/**
- * Destructor
- */
-template <typename T>
-CursedArray<T>::~CursedArray() {
-    delete _tree;
-}
-
-
-/**
- * [] operator for accessing a value for a given float index.
- */
-template <typename T>
-const T & CursedArray<T>::operator [](float index) const {
-    return _tree->findValue(index);
-}
-
-
-/**
- *
- * @param value
- */
-template <typename T>
-void CursedArray<T>::operator=(T value) {
-    _tree->insert(_index, value);
-}
-
-/**
- * [] operator for assigning a value at a given float index.
- * @tparam T Template datatype for the value to store.
- * @param index Index at which to store the value.
- * @return Returns a reference to the index's value.
- */
-template <typename T>
-CursedArray<T> & CursedArray<T>::operator [](float index) {
-    this->_index = index;
-    return *this;
-}
-
-
-/**
- * [] operator overloading to convert a double index to a float index.
- */
-template<typename T>
-T& CursedArray<T>::operator [](double index) {
-    return CursedArray<T>::operator []((float)index);
-}
-
-
-/**
- * [] Operator overloaded to error if index is an int or int literal.
- */
-template<typename T>
-void CursedArray<T>::operator [](int) {
-    static_assert(false, "CursedArray index cannot be an integer.");
-}
-
-
-/**
- *
- * @tparam T
- * @param index
- * @return Returns true if the index was found and removed.
- */
-template <typename T>
-bool CursedArray<T>::remove(float index) {
-    return _tree->remove(index);
+T* CursedArray<T>::_get(float index) {
+    return &_tree.findValue(index);
 }
 
 
 template <typename T>
-inline int CursedArray<T>::size() {
-    return _tree->size();
+void CursedArray<T>::_set(float index, T value) {
+    _tree.insert(index, value);
 }
 
 

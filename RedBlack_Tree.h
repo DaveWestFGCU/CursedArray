@@ -52,7 +52,7 @@ public:
     void insert(const K & key, const V & value);
     V& cursedInsert(const K & key); // Used in [] operator overloading
     bool remove(const K & key);
-    V* findValue(const K & key);
+    V& findValue(const K & key);
     K findKey(const V & value);
     int size();
 
@@ -203,7 +203,7 @@ V& RedBlackTree<K,V>::cursedInsert(const K & key) {
  * @return - Returns a pointer to the value stored at a key.
  */
 template <typename K, typename V>
-V* RedBlackTree<K,V>::findValue(const K & key) {
+V& RedBlackTree<K,V>::findValue(const K & key) {
     RedBlackNode* currentNode = treeRoot;
     bool nodeExists = false;
 

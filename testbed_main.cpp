@@ -10,6 +10,8 @@ int main() {
     CursedArray<string> array;
 
     array[3.f] = "apple";
+    string item = array[3.f];
+    cout << item;
     /*
     array[0.5] = "orange";
     /*

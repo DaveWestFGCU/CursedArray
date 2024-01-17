@@ -7,5 +7,5 @@ add_executable(CursedArray testbed_main.cpp
         CursedArray.cpp
         List.h
         Queue.h
-        RedBlack_Tree.cpp
+        RedBlack_Tree.h
         )

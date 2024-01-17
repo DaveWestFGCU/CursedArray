@@ -8,7 +8,7 @@
 #define CURSED_ARRAY_H
 
 #include <string>
-#include "RedBlack_Tree.cpp"
+#include "RedBlack_Tree.h"
 
 // TODO: iterators to find saved keys/values
 
